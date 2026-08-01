@@ -1,0 +1,21 @@
+{
+  "name": "seguimiento-sena",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @seguimiento/api",
+    "dev:web": "npm run dev -w @seguimiento/web",
+    "build": "npm run build -w @seguimiento/api && npm run build -w @seguimiento/web",
+    "test": "npm run test -w @seguimiento/api",
+    "seed": "npm run seed -w @seguimiento/api"
+  },
+  "overrides": {
+    "typeorm": "0.3.22",
+    "@nestjs/typeorm": {
+      "typeorm": "0.3.22"
+    }
+  }
+}

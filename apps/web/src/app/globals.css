@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+:root {
+  /* Neutral canvas */
+  --background: #f4f7f5;
+  --panel: #eef3f0;
+  --card: #ffffff;
+  --card-foreground: #101a16;
+  --foreground: #101a16;
+  --muted: #e7eeea;
+  --muted-foreground: #5a6b62;
+  --border: #d7e0da;
+  --input: #c6d2cb;
+
+  /* SENA verde institucional (oficial HEX 39A900) usado como acento de marca */
+  --brand: #39a900;
+  --brand-foreground: #0f2900;
+
+  /* Verde SENA oscuro (color secundario oficial 007832) — color interactivo primario, AA-compliant */
+  --primary: #007832;
+  --primary-foreground: #ffffff;
+  --secondary: #e2f3e6;
+  --secondary-foreground: #00591f;
+
+  /* Azul oscuro SENA (color secundario oficial 00304D) */
+  --info: #00304d;
+  --info-foreground: #e2edf4;
+
+  /* Violeta SENA (color secundario oficial 71277A) */
+  --stat: #71277a;
+  --stat-foreground: #f4e9f5;
+
+  /* Amarillo SENA (color secundario oficial FDC300), oscurecido para texto accesible */
+  --warning: #7a5b00;
+  --warning-foreground: #fff6d8;
+
+  --destructive: #a32020;
+  --destructive-foreground: #fff5f5;
+
+  /* Sidebar: azul oscuro SENA como chrome oscuro moderno */
+  --sidebar: #00304d;
+  --sidebar-foreground: #e7eef2;
+  --sidebar-muted: #93a9b6;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-hover: rgba(255, 255, 255, 0.07);
+  --sidebar-active: rgba(57, 169, 0, 0.18);
+
+  --ring: #007832;
+  --radius: 0.5rem;
+  --shadow-card: 0 1px 2px rgb(16 26 22 / 4%), 0 1px 3px rgb(16 26 22 / 3%);
+  --shadow-elevated: 0 8px 24px rgb(16 26 22 / 10%), 0 2px 6px rgb(16 26 22 / 5%);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-stat: var(--stat);
+  --color-stat-foreground: var(--stat-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-jakarta);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-jakarta), "Segoe UI", sans-serif;
+  font-feature-settings: "ss01" on, "cv11" on;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--brand) 22%, white);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-in {
+  animation: fade-in 180ms ease-out both;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    color-mix(in srgb, var(--muted) 55%, white) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes content-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-overlay {
+  animation: overlay-in 150ms ease-out both;
+}
+
+.animate-dialog {
+  animation: content-in 180ms ease-out both;
+}
