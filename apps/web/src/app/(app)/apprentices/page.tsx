@@ -6,9 +6,10 @@ import { Eye, GraduationCap, MoreHorizontal, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useAuth, useRequireAuth } from "@/lib/auth";
 import { apiGet } from "@/lib/api";
-import type { Apprentice, Group, PaginatedResult } from "@/lib/types";
+import type { Apprentice, PaginatedResult } from "@/lib/types";
 import { apprenticeStatusLabels } from "@/lib/labels";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { GroupSelect } from "@/components/group-select";
 import { QueryState } from "@/components/query-state";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -42,11 +43,6 @@ export default function ApprenticesPage() {
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
   const debouncedDocument = useDebouncedValue(document);
-
-  const groupsQuery = useQuery({
-    queryKey: ["groups-options"],
-    queryFn: () => apiGet<PaginatedResult<Group>>("/groups", { limit: 100 }),
-  });
 
   const params = useMemo(
     () => ({
@@ -103,22 +99,17 @@ export default function ApprenticesPage() {
               aria-label="Número de documento"
               className="w-[150px]"
             />
-            <Select
+            <GroupSelect
               value={groupId}
-              onChange={(e) => {
-                setGroupId(e.target.value);
+              onValueChange={(next) => {
+                setGroupId(next);
                 setPage(1);
               }}
-              aria-label="Ficha"
-              className="w-[140px]"
-            >
-              <option value="">Todas las fichas</option>
-              {groupsQuery.data?.items.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.number}
-                </option>
-              ))}
-            </Select>
+              allowClear
+              clearLabel="Todas las fichas"
+              placeholder="Todas las fichas"
+              className="w-[180px]"
+            />
             <Select
               value={status}
               onChange={(e) => {

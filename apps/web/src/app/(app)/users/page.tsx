@@ -3,13 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MoreHorizontal, Plus, UserCog } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useRequireAuth } from "@/lib/auth";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
-import type { PaginatedResult, Role, User } from "@/lib/types";
+import type { PaginatedResult, Role, User, UserStatus } from "@/lib/types";
 import { roleLabels, userStatusLabels } from "@/lib/labels";
 import { getApiErrorMessage } from "@/lib/utils";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
@@ -54,14 +54,28 @@ const createSchema = z.object({
   role: z.enum(["ADMIN", "INSTRUCTOR"]),
 });
 
+const editSchema = z.object({
+  fullName: z.string().min(3, "Mínimo 3 caracteres"),
+  email: z.string().email("Correo inválido"),
+  password: z.union([
+    z.literal(""),
+    z.string().min(8, "Mínimo 8 caracteres"),
+  ]),
+  role: z.enum(["ADMIN", "INSTRUCTOR"]),
+  status: z.enum(["ACTIVE", "INACTIVE"]),
+});
+
 type CreateForm = z.infer<typeof createSchema>;
+type EditForm = z.infer<typeof editSchema>;
 
 export default function UsersPage() {
   useRequireAuth(["ADMIN"]);
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const debouncedSearch = useDebouncedValue(search);
 
   const usersQuery = useQuery({
@@ -73,25 +87,70 @@ export default function UsersPage() {
       }),
   });
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<CreateForm>({
+  const createForm = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
     defaultValues: { role: "INSTRUCTOR" },
   });
+
+  const editForm = useForm<EditForm>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      fullName: "",
+      email: "",
+      password: "",
+      role: "INSTRUCTOR",
+      status: "ACTIVE",
+    },
+  });
+
+  useEffect(() => {
+    if (!editingUser) return;
+    editForm.reset({
+      fullName: editingUser.fullName,
+      email: editingUser.email,
+      password: "",
+      role: editingUser.role,
+      status: editingUser.status,
+    });
+    setEditError(null);
+  }, [editingUser, editForm]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreateForm) => apiPost<User>("/users", data),
     onSuccess: () => {
       toast.success("Usuario creado correctamente");
-      reset({ role: "INSTRUCTOR" });
-      setDialogOpen(false);
+      createForm.reset({ role: "INSTRUCTOR" });
+      setCreateOpen(false);
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
-    onError: (err) => setFormError(getApiErrorMessage(err)),
+    onError: (err) => setCreateError(getApiErrorMessage(err)),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: EditForm }) => {
+      const payload: {
+        fullName: string;
+        email: string;
+        role: Role;
+        status: UserStatus;
+        password?: string;
+      } = {
+        fullName: data.fullName,
+        email: data.email,
+        role: data.role,
+        status: data.status,
+      };
+      if (data.password) {
+        payload.password = data.password;
+      }
+      return apiPatch<User>(`/users/${id}`, payload);
+    },
+    onSuccess: () => {
+      toast.success("Usuario actualizado");
+      setEditingUser(null);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err) => setEditError(getApiErrorMessage(err)),
   });
 
   const deactivateMutation = useMutation({
@@ -110,7 +169,7 @@ export default function UsersPage() {
         title="Usuarios"
         description="Administre cuentas de administradores e instructores."
         actions={
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             Nuevo usuario
           </Button>
@@ -134,7 +193,7 @@ export default function UsersPage() {
         emptyTitle="No hay usuarios"
         emptyDescription="Cree el primer usuario con el botón Nuevo usuario."
         emptyAction={
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
             Crear usuario
           </Button>
         }
@@ -178,27 +237,30 @@ export default function UsersPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {u.status === "ACTIVE" ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => setEditingUser(u)}>
+                            Editar
+                          </DropdownMenuItem>
+                          {u.status === "ACTIVE" ? (
                             <DropdownMenuItem
                               destructive
                               onSelect={() => deactivateMutation.mutate(u.id)}
                             >
                               Desactivar
                             </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : null}
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -208,7 +270,16 @@ export default function UsersPage() {
         )}
       </QueryState>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) {
+            setCreateError(null);
+            createForm.reset({ role: "INSTRUCTOR" });
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nuevo usuario</DialogTitle>
@@ -217,59 +288,59 @@ export default function UsersPage() {
             </DialogDescription>
           </DialogHeader>
           <form
-            onSubmit={handleSubmit(async (values) => {
-              setFormError(null);
+            onSubmit={createForm.handleSubmit(async (values) => {
+              setCreateError(null);
               await createMutation.mutateAsync(values);
             })}
           >
             <DialogBody className="space-y-4">
-              {formError ? (
-                <Alert variant="destructive">{formError}</Alert>
+              {createError ? (
+                <Alert variant="destructive">{createError}</Alert>
               ) : null}
               <div className="space-y-2">
-                <Label htmlFor="fullName">Nombre completo</Label>
+                <Label htmlFor="create-fullName">Nombre completo</Label>
                 <Input
-                  id="fullName"
-                  error={!!errors.fullName}
-                  {...register("fullName")}
+                  id="create-fullName"
+                  error={!!createForm.formState.errors.fullName}
+                  {...createForm.register("fullName")}
                 />
-                {errors.fullName ? (
+                {createForm.formState.errors.fullName ? (
                   <p className="text-xs text-destructive">
-                    {errors.fullName.message}
+                    {createForm.formState.errors.fullName.message}
                   </p>
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Correo</Label>
+                <Label htmlFor="create-email">Correo</Label>
                 <Input
-                  id="email"
+                  id="create-email"
                   type="email"
-                  error={!!errors.email}
-                  {...register("email")}
+                  error={!!createForm.formState.errors.email}
+                  {...createForm.register("email")}
                 />
-                {errors.email ? (
+                {createForm.formState.errors.email ? (
                   <p className="text-xs text-destructive">
-                    {errors.email.message}
+                    {createForm.formState.errors.email.message}
                   </p>
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
+                <Label htmlFor="create-password">Contraseña</Label>
                 <Input
-                  id="password"
+                  id="create-password"
                   type="password"
-                  error={!!errors.password}
-                  {...register("password")}
+                  error={!!createForm.formState.errors.password}
+                  {...createForm.register("password")}
                 />
-                {errors.password ? (
+                {createForm.formState.errors.password ? (
                   <p className="text-xs text-destructive">
-                    {errors.password.message}
+                    {createForm.formState.errors.password.message}
                   </p>
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="role">Rol</Label>
-                <Select id="role" {...register("role")}>
+                <Label htmlFor="create-role">Rol</Label>
+                <Select id="create-role" {...createForm.register("role")}>
                   {(Object.keys(roleLabels) as Role[]).map((role) => (
                     <option key={role} value={role}>
                       {roleLabels[role]}
@@ -282,15 +353,136 @@ export default function UsersPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setDialogOpen(false)}
+                onClick={() => setCreateOpen(false)}
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
-                loading={isSubmitting || createMutation.isPending}
+                loading={
+                  createForm.formState.isSubmitting || createMutation.isPending
+                }
               >
                 Crear usuario
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!editingUser}
+        onOpenChange={(open) => {
+          if (!open) setEditingUser(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar usuario</DialogTitle>
+            <DialogDescription>
+              Actualice los datos de la cuenta. Deje la contraseña vacía si no
+              desea cambiarla.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={editForm.handleSubmit(async (values) => {
+              if (!editingUser) return;
+              setEditError(null);
+              await updateMutation.mutateAsync({
+                id: editingUser.id,
+                data: values,
+              });
+            })}
+          >
+            <DialogBody className="space-y-4">
+              {editError ? (
+                <Alert variant="destructive">{editError}</Alert>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="edit-fullName">Nombre completo</Label>
+                <Input
+                  id="edit-fullName"
+                  error={!!editForm.formState.errors.fullName}
+                  {...editForm.register("fullName")}
+                />
+                {editForm.formState.errors.fullName ? (
+                  <p className="text-xs text-destructive">
+                    {editForm.formState.errors.fullName.message}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Correo</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  error={!!editForm.formState.errors.email}
+                  {...editForm.register("email")}
+                />
+                {editForm.formState.errors.email ? (
+                  <p className="text-xs text-destructive">
+                    {editForm.formState.errors.email.message}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-password">
+                  Nueva contraseña{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </Label>
+                <Input
+                  id="edit-password"
+                  type="password"
+                  placeholder="Dejar vacío para no cambiar"
+                  error={!!editForm.formState.errors.password}
+                  {...editForm.register("password")}
+                />
+                {editForm.formState.errors.password ? (
+                  <p className="text-xs text-destructive">
+                    {editForm.formState.errors.password.message}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">Rol</Label>
+                <Select id="edit-role" {...editForm.register("role")}>
+                  {(Object.keys(roleLabels) as Role[]).map((role) => (
+                    <option key={role} value={role}>
+                      {roleLabels[role]}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Estado</Label>
+                <Select id="edit-status" {...editForm.register("status")}>
+                  {(Object.keys(userStatusLabels) as UserStatus[]).map(
+                    (status) => (
+                      <option key={status} value={status}>
+                        {userStatusLabels[status]}
+                      </option>
+                    ),
+                  )}
+                </Select>
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingUser(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                loading={
+                  editForm.formState.isSubmitting || updateMutation.isPending
+                }
+              >
+                Guardar cambios
               </Button>
             </DialogFooter>
           </form>

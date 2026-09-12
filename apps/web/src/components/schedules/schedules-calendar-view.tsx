@@ -9,8 +9,6 @@ import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   CalendarResponse,
   Environment,
-  Group,
-  PaginatedResult,
   Schedule,
   Trimester,
   User,
@@ -18,6 +16,7 @@ import type {
 } from "@/lib/types";
 import { weekDayLabels, weekDays } from "@/lib/labels";
 import { cn, colorFromId, getApiErrorMessage } from "@/lib/utils";
+import { GroupSelect } from "@/components/group-select";
 import { QueryState } from "@/components/query-state";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -71,11 +70,6 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
   const trimestersQuery = useQuery({
     queryKey: ["trimesters-active"],
     queryFn: () => apiGet<Trimester[]>("/trimesters", { status: "ACTIVE" }),
-  });
-  const groupsQuery = useQuery({
-    queryKey: ["groups-options"],
-    queryFn: () =>
-      apiGet<PaginatedResult<Group>>("/groups", { limit: 100, status: "ACTIVE" }),
   });
   const instructorsQuery = useQuery({
     queryKey: ["instructors"],
@@ -276,18 +270,15 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
         {isGroupMode ? (
           <div className="space-y-2">
             <Label htmlFor="filter-group">Ficha</Label>
-            <Select
+            <GroupSelect
               id="filter-group"
               value={groupId}
-              onChange={(e) => setGroupId(e.target.value)}
-            >
-              <option value="">Seleccionar ficha</option>
-              {groupsQuery.data?.items.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.number}
-                </option>
-              ))}
-            </Select>
+              onValueChange={setGroupId}
+              status="ACTIVE"
+              allowClear
+              clearLabel="Seleccionar ficha"
+              placeholder="Seleccionar ficha"
+            />
           </div>
         ) : (
           <div className="space-y-2">
@@ -562,21 +553,14 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
 
                 <div className="space-y-2">
                   <Label htmlFor="form-group">Ficha</Label>
-                  <Select
+                  <GroupSelect
                     id="form-group"
                     value={formGroupId}
-                    onChange={(e) => setFormGroupId(e.target.value)}
+                    onValueChange={setFormGroupId}
+                    status="ACTIVE"
+                    placeholder="Seleccionar ficha"
                     disabled={!!formState.schedule || (isGroupMode && !!groupId)}
-                  >
-                    <option value="" disabled>
-                      Seleccionar ficha
-                    </option>
-                    {groupsQuery.data?.items.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.number}
-                      </option>
-                    ))}
-                  </Select>
+                  />
                 </div>
 
                 <div className="space-y-2">

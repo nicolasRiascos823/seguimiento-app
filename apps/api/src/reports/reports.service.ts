@@ -210,6 +210,123 @@ export class ReportsService {
     });
   }
 
+  async schedulesByAllGroups(trimesterId: string) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, status: ScheduleStatus.ACTIVE },
+      relations: { group: { leader: true }, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    const byGroup = new Map<string, { group: Group; items: Schedule[] }>();
+    for (const schedule of schedules) {
+      if (!schedule.group) continue;
+      const entry = byGroup.get(schedule.groupId);
+      if (entry) {
+        entry.items.push(schedule);
+      } else {
+        byGroup.set(schedule.groupId, {
+          group: schedule.group,
+          items: [schedule],
+        });
+      }
+    }
+
+    const sections = [...byGroup.values()]
+      .sort((a, b) =>
+        a.group.number.localeCompare(b.group.number, 'es', { numeric: true }),
+      )
+      .map(({ group, items }) => ({
+      subtitle: `Ficha ${group.number}`,
+      meta: [
+        { label: 'Ficha', value: group.number },
+        {
+          label: 'Instructor líder',
+          value: group.leader?.fullName ?? '—',
+        },
+        { label: 'Horas / semana', value: String(items.length) },
+      ],
+      body: (doc: PDFKit.PDFDocument, page: PageMetrics) => {
+        this.drawScheduleTable(doc, page, items, 'group');
+      },
+    }));
+
+    return this.buildMultiPdf({
+      title: 'Horarios por ficha',
+      emptySubtitle: 'Todas las fichas',
+      emptyMessage:
+        'No hay horarios activos para ninguna ficha en este trimestre.',
+      trimester,
+      landscape: true,
+      compact: true,
+      sections,
+    });
+  }
+
+  async schedulesByAllInstructors(trimesterId: string) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, status: ScheduleStatus.ACTIVE },
+      relations: { group: true, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    const byInstructor = new Map<
+      string,
+      { instructor: User; items: Schedule[] }
+    >();
+    for (const schedule of schedules) {
+      if (!schedule.instructor) continue;
+      const entry = byInstructor.get(schedule.instructorId);
+      if (entry) {
+        entry.items.push(schedule);
+      } else {
+        byInstructor.set(schedule.instructorId, {
+          instructor: schedule.instructor,
+          items: [schedule],
+        });
+      }
+    }
+
+    const sections = [...byInstructor.values()]
+      .sort((a, b) =>
+        a.instructor.fullName.localeCompare(b.instructor.fullName, 'es'),
+      )
+      .map(({ instructor, items }) => ({
+        subtitle: instructor.fullName,
+        meta: [
+          { label: 'Instructor', value: instructor.fullName },
+          { label: 'Horas / semana', value: String(items.length) },
+          {
+            label: 'Fichas',
+            value: String(new Set(items.map((s) => s.groupId)).size),
+          },
+        ],
+        body: (doc: PDFKit.PDFDocument, page: PageMetrics) => {
+          this.drawScheduleTable(doc, page, items, 'instructor');
+        },
+      }));
+
+    return this.buildMultiPdf({
+      title: 'Horarios por instructor',
+      emptySubtitle: 'Todos los instructores',
+      emptyMessage:
+        'No hay horarios activos para ningún instructor en este trimestre.',
+      trimester,
+      landscape: true,
+      compact: true,
+      sections,
+    });
+  }
+
   private async loadTrimesterGroup(trimesterId: string, groupId: string) {
     const trimester = await this.trimestersRepo.findOne({
       where: { id: trimesterId },
@@ -272,6 +389,78 @@ export class ReportsService {
       opts.body(doc, page);
       this.drawFooter(doc, page);
 
+      doc.end();
+    });
+  }
+
+  private buildMultiPdf(opts: {
+    title: string;
+    emptySubtitle: string;
+    emptyMessage: string;
+    trimester: Trimester;
+    landscape: boolean;
+    compact?: boolean;
+    sections: Array<{
+      subtitle: string;
+      meta: Array<{ label: string; value: string }>;
+      body: (doc: PDFKit.PDFDocument, page: PageMetrics) => void;
+    }>;
+  }): Promise<Buffer> {
+    const logoPath = this.config.get<string>('REPORT_LOGO_PATH');
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        layout: opts.landscape ? 'landscape' : 'portrait',
+        margins: { top: 28, bottom: 36, left: 28, right: 28 },
+        bufferPages: true,
+        autoFirstPage: true,
+        info: {
+          Title: opts.title,
+          Author: 'Seguimiento SENA',
+          Subject: opts.emptySubtitle,
+        },
+      });
+
+      const chunks: Buffer[] = [];
+      doc.on('data', (c) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const page = this.pageMetrics(doc);
+      const sections =
+        opts.sections.length > 0
+          ? opts.sections
+          : [
+              {
+                subtitle: opts.emptySubtitle,
+                meta: [{ label: 'Resultado', value: 'Sin horarios' }],
+                body: (d: PDFKit.PDFDocument) => {
+                  this.drawEmpty(d, opts.emptyMessage);
+                },
+              },
+            ];
+
+      sections.forEach((section, index) => {
+        if (index > 0) {
+          doc.addPage();
+        }
+        this.drawHeader(
+          doc,
+          page,
+          opts.title,
+          section.subtitle,
+          opts.trimester,
+          logoPath,
+          opts.compact,
+        );
+        if (section.meta.length > 0) {
+          this.drawMetaBar(doc, page, section.meta, opts.compact);
+        }
+        section.body(doc, page);
+      });
+
+      this.drawFooter(doc, page);
       doc.end();
     });
   }

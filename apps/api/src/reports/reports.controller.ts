@@ -58,6 +58,17 @@ export class ReportsController {
     });
   }
 
+  @Get('schedules/groups')
+  async schedulesByAllGroups(@Query() query: ReportQueryDto) {
+    const pdf = await this.reportsService.schedulesByAllGroups(
+      query.trimesterId,
+    );
+    return new StreamableFile(pdf, {
+      type: 'application/pdf',
+      disposition: 'inline; filename="horarios-fichas.pdf"',
+    });
+  }
+
   @Get('schedules/instructor')
   async schedulesByInstructor(@Query() query: ReportQueryDto) {
     if (!query.instructorId) {
@@ -70,6 +81,17 @@ export class ReportsController {
     return new StreamableFile(pdf, {
       type: 'application/pdf',
       disposition: 'inline; filename="horario-instructor.pdf"',
+    });
+  }
+
+  @Get('schedules/instructors')
+  async schedulesByAllInstructors(@Query() query: ReportQueryDto) {
+    const pdf = await this.reportsService.schedulesByAllInstructors(
+      query.trimesterId,
+    );
+    return new StreamableFile(pdf, {
+      type: 'application/pdf',
+      disposition: 'inline; filename="horarios-instructores.pdf"',
     });
   }
 }
