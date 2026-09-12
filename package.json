@@ -9,6 +9,9 @@
     "dev:api": "npm run dev -w @seguimiento/api",
     "dev:web": "npm run dev -w @seguimiento/web",
     "build": "npm run build -w @seguimiento/api && npm run build -w @seguimiento/web",
+    "build:api": "npm run build -w @seguimiento/api",
+    "start:api": "npm run start:prod -w @seguimiento/api",
+    "render:build": "npm install --include=dev && npm run build -w @seguimiento/api",
     "test": "npm run test -w @seguimiento/api",
     "seed": "npm run seed -w @seguimiento/api"
   },
