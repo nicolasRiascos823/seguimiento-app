@@ -20,6 +20,7 @@ import { SchedulesModule } from './schedules/schedules.module';
 import { PerformanceStatusesModule } from './performance-statuses/performance-statuses.module';
 import { EvaluationsModule } from './evaluations/evaluations.module';
 import { ReportsModule } from './reports/reports.module';
+import { KeepAliveModule } from './keep-alive/keep-alive.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -51,6 +52,7 @@ import { HealthController } from './health.controller';
     PerformanceStatusesModule,
     EvaluationsModule,
     ReportsModule,
+    KeepAliveModule,
   ],
   controllers: [HealthController],
   providers: [
