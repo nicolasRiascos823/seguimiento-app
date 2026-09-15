@@ -33,6 +33,22 @@ const COLORS = {
   white: '#FFFFFF',
 } as const;
 
+/** Colores pastel suaves para diferenciar instructores / fichas (PDF y Excel) */
+const SOFT_ENTITY_COLORS = [
+  '#E2F3E6',
+  '#E1EAF0',
+  '#FFF3D6',
+  '#F3E8F7',
+  '#FFE8DC',
+  '#E5F6F4',
+  '#FCE4EC',
+  '#E8EEF9',
+  '#F5F0E6',
+  '#E6F4EA',
+  '#FFF0E8',
+  '#EDE7F6',
+] as const;
+
 const WEEK_DAYS: WeekDay[] = [
   WeekDay.MONDAY,
   WeekDay.TUESDAY,
@@ -1151,6 +1167,8 @@ export class ReportsService {
       map.set(`${s.weekDay}|${s.blockStart}`, s);
     }
 
+    const entityColors = this.buildScheduleEntityColors(schedules, mode);
+
     const timeColW = 42;
     const dayColW = (page.contentWidth - timeColW) / WEEK_DAYS.length;
     const headerH = 16;
@@ -1217,7 +1235,10 @@ export class ReportsService {
 
         doc.save();
         if (schedule) {
-          doc.rect(x, y, dayColW, rowH).fill(COLORS.softGreen);
+          const fill =
+            entityColors.get(this.scheduleColorKey(schedule, mode)) ??
+            SOFT_ENTITY_COLORS[0]!;
+          doc.rect(x, y, dayColW, rowH).fill(fill);
           doc.rect(x, y, 2, rowH).fill(COLORS.primary);
 
           const line1 =
@@ -1294,6 +1315,31 @@ export class ReportsService {
     doc.x = page.left;
     doc.y = Math.min(startY + tableH + 4, page.contentBottom - 20);
     doc.fillColor(COLORS.ink);
+  }
+
+  private scheduleColorKey(
+    schedule: Schedule,
+    mode: 'group' | 'instructor' | 'environment',
+  ): string {
+    if (mode === 'group') {
+      return schedule.instructorId || schedule.instructor?.id || 'unknown';
+    }
+    return schedule.groupId || schedule.group?.id || 'unknown';
+  }
+
+  private buildScheduleEntityColors(
+    schedules: Schedule[],
+    mode: 'group' | 'instructor' | 'environment',
+  ): Map<string, string> {
+    const keys = [
+      ...new Set(schedules.map((s) => this.scheduleColorKey(s, mode))),
+    ].sort((a, b) => a.localeCompare(b));
+
+    const map = new Map<string, string>();
+    keys.forEach((key, index) => {
+      map.set(key, SOFT_ENTITY_COLORS[index % SOFT_ENTITY_COLORS.length]!);
+    });
+    return map;
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
