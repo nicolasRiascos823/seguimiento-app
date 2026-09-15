@@ -32,7 +32,7 @@ import {
 
 const createSchema = z.object({
   name: z.string().min(2, "Mínimo 2 caracteres"),
-  isVirtual: z.boolean().default(false),
+  isVirtual: z.boolean(),
 });
 
 type CreateForm = z.infer<typeof createSchema>;
