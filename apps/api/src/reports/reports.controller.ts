@@ -26,6 +26,16 @@ class ReportQueryDto {
   environmentId?: string;
 }
 
+const XLSX =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+function excelFile(buffer: Buffer, filename: string) {
+  return new StreamableFile(buffer, {
+    type: XLSX,
+    disposition: `attachment; filename="${filename}"`,
+  });
+}
+
 @ApiTags('Reports')
 @ApiBearerAuth()
 @Controller('reports')
@@ -62,6 +72,18 @@ export class ReportsController {
     });
   }
 
+  @Get('schedules/group/excel')
+  async schedulesByGroupExcel(@Query() query: ReportQueryDto) {
+    if (!query.groupId) {
+      throw new BadRequestException('groupId es requerido');
+    }
+    const xlsx = await this.reportsService.schedulesByGroupExcel(
+      query.trimesterId,
+      query.groupId,
+    );
+    return excelFile(xlsx, 'horario-ficha.xlsx');
+  }
+
   @Get('schedules/groups')
   async schedulesByAllGroups(@Query() query: ReportQueryDto) {
     const pdf = await this.reportsService.schedulesByAllGroups(
@@ -71,6 +93,14 @@ export class ReportsController {
       type: 'application/pdf',
       disposition: 'inline; filename="horarios-fichas.pdf"',
     });
+  }
+
+  @Get('schedules/groups/excel')
+  async schedulesByAllGroupsExcel(@Query() query: ReportQueryDto) {
+    const xlsx = await this.reportsService.schedulesByAllGroupsExcel(
+      query.trimesterId,
+    );
+    return excelFile(xlsx, 'horarios-fichas.xlsx');
   }
 
   @Get('schedules/instructor')
@@ -88,6 +118,18 @@ export class ReportsController {
     });
   }
 
+  @Get('schedules/instructor/excel')
+  async schedulesByInstructorExcel(@Query() query: ReportQueryDto) {
+    if (!query.instructorId) {
+      throw new BadRequestException('instructorId es requerido');
+    }
+    const xlsx = await this.reportsService.schedulesByInstructorExcel(
+      query.trimesterId,
+      query.instructorId,
+    );
+    return excelFile(xlsx, 'horario-instructor.xlsx');
+  }
+
   @Get('schedules/instructors')
   async schedulesByAllInstructors(@Query() query: ReportQueryDto) {
     const pdf = await this.reportsService.schedulesByAllInstructors(
@@ -97,6 +139,14 @@ export class ReportsController {
       type: 'application/pdf',
       disposition: 'inline; filename="horarios-instructores.pdf"',
     });
+  }
+
+  @Get('schedules/instructors/excel')
+  async schedulesByAllInstructorsExcel(@Query() query: ReportQueryDto) {
+    const xlsx = await this.reportsService.schedulesByAllInstructorsExcel(
+      query.trimesterId,
+    );
+    return excelFile(xlsx, 'horarios-instructores.xlsx');
   }
 
   @Get('schedules/environment')
@@ -114,6 +164,18 @@ export class ReportsController {
     });
   }
 
+  @Get('schedules/environment/excel')
+  async schedulesByEnvironmentExcel(@Query() query: ReportQueryDto) {
+    if (!query.environmentId) {
+      throw new BadRequestException('environmentId es requerido');
+    }
+    const xlsx = await this.reportsService.schedulesByEnvironmentExcel(
+      query.trimesterId,
+      query.environmentId,
+    );
+    return excelFile(xlsx, 'horario-ambiente.xlsx');
+  }
+
   @Get('schedules/environments')
   async schedulesByAllEnvironments(@Query() query: ReportQueryDto) {
     const pdf = await this.reportsService.schedulesByAllEnvironments(
@@ -123,5 +185,13 @@ export class ReportsController {
       type: 'application/pdf',
       disposition: 'inline; filename="horarios-ambientes.pdf"',
     });
+  }
+
+  @Get('schedules/environments/excel')
+  async schedulesByAllEnvironmentsExcel(@Query() query: ReportQueryDto) {
+    const xlsx = await this.reportsService.schedulesByAllEnvironmentsExcel(
+      query.trimesterId,
+    );
+    return excelFile(xlsx, 'horarios-ambientes.xlsx');
   }
 }

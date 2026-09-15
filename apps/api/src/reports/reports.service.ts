@@ -17,6 +17,7 @@ import {
   TIME_BLOCKS,
   WeekDay,
 } from '../database/enums';
+import { buildScheduleExcel } from './schedule-excel.builder';
 
 /** Paleta institucional SENA (Manual de Identidad Visual 2024) */
 const COLORS = {
@@ -424,6 +425,267 @@ export class ReportsService {
       compact: true,
       sections,
     });
+  }
+
+  // ─── Excel schedule reports ───────────────────────────────────────────────
+
+  async schedulesByGroupExcel(trimesterId: string, groupId: string) {
+    const { trimester, group } = await this.loadTrimesterGroup(
+      trimesterId,
+      groupId,
+    );
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, groupId, status: ScheduleStatus.ACTIVE },
+      relations: { instructor: true, environment: true, group: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    return buildScheduleExcel([
+      {
+        sheetName: group.number,
+        title: `Horario por ficha — ${group.number}`,
+        trimesterName: trimester.name,
+        meta: [
+          { label: 'Ficha', value: group.number },
+          {
+            label: 'Instructor líder',
+            value: group.leader?.fullName ?? '—',
+          },
+          { label: 'Horas / semana', value: String(schedules.length) },
+        ],
+        schedules,
+        mode: 'group',
+      },
+    ]);
+  }
+
+  async schedulesByAllGroupsExcel(trimesterId: string) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, status: ScheduleStatus.ACTIVE },
+      relations: { group: { leader: true }, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    const byGroup = new Map<string, { group: Group; items: Schedule[] }>();
+    for (const schedule of schedules) {
+      if (!schedule.group) continue;
+      const entry = byGroup.get(schedule.groupId);
+      if (entry) {
+        entry.items.push(schedule);
+      } else {
+        byGroup.set(schedule.groupId, {
+          group: schedule.group,
+          items: [schedule],
+        });
+      }
+    }
+
+    const sheets = [...byGroup.values()]
+      .sort((a, b) =>
+        a.group.number.localeCompare(b.group.number, 'es', { numeric: true }),
+      )
+      .map(({ group, items }) => ({
+        sheetName: group.number,
+        title: `Horario por ficha — ${group.number}`,
+        trimesterName: trimester.name,
+        meta: [
+          { label: 'Ficha', value: group.number },
+          {
+            label: 'Instructor líder',
+            value: group.leader?.fullName ?? '—',
+          },
+          { label: 'Horas / semana', value: String(items.length) },
+        ],
+        schedules: items,
+        mode: 'group' as const,
+      }));
+
+    return buildScheduleExcel(sheets);
+  }
+
+  async schedulesByInstructorExcel(
+    trimesterId: string,
+    instructorId: string,
+  ) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+    const instructor = await this.usersRepo.findOne({
+      where: { id: instructorId },
+    });
+    if (!instructor) throw new NotFoundException('Instructor no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, instructorId, status: ScheduleStatus.ACTIVE },
+      relations: { group: true, environment: true, instructor: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    return buildScheduleExcel([
+      {
+        sheetName: instructor.fullName,
+        title: `Horario por instructor — ${instructor.fullName}`,
+        trimesterName: trimester.name,
+        meta: [
+          { label: 'Instructor', value: instructor.fullName },
+          { label: 'Horas / semana', value: String(schedules.length) },
+          {
+            label: 'Fichas',
+            value: String(new Set(schedules.map((s) => s.groupId)).size),
+          },
+        ],
+        schedules,
+        mode: 'instructor',
+      },
+    ]);
+  }
+
+  async schedulesByAllInstructorsExcel(trimesterId: string) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, status: ScheduleStatus.ACTIVE },
+      relations: { group: true, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    const byInstructor = new Map<
+      string,
+      { instructor: User; items: Schedule[] }
+    >();
+    for (const schedule of schedules) {
+      if (!schedule.instructor) continue;
+      const entry = byInstructor.get(schedule.instructorId);
+      if (entry) {
+        entry.items.push(schedule);
+      } else {
+        byInstructor.set(schedule.instructorId, {
+          instructor: schedule.instructor,
+          items: [schedule],
+        });
+      }
+    }
+
+    const sheets = [...byInstructor.values()]
+      .sort((a, b) =>
+        a.instructor.fullName.localeCompare(b.instructor.fullName, 'es'),
+      )
+      .map(({ instructor, items }) => ({
+        sheetName: instructor.fullName,
+        title: `Horario por instructor — ${instructor.fullName}`,
+        trimesterName: trimester.name,
+        meta: [
+          { label: 'Instructor', value: instructor.fullName },
+          { label: 'Horas / semana', value: String(items.length) },
+          {
+            label: 'Fichas',
+            value: String(new Set(items.map((s) => s.groupId)).size),
+          },
+        ],
+        schedules: items,
+        mode: 'instructor' as const,
+      }));
+
+    return buildScheduleExcel(sheets);
+  }
+
+  async schedulesByEnvironmentExcel(
+    trimesterId: string,
+    environmentId: string,
+  ) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+    const environment = await this.environmentsRepo.findOne({
+      where: { id: environmentId },
+    });
+    if (!environment) throw new NotFoundException('Ambiente no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, environmentId, status: ScheduleStatus.ACTIVE },
+      relations: { group: true, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    return buildScheduleExcel([
+      {
+        sheetName: environment.name,
+        title: `Horario por ambiente — ${environment.name}`,
+        trimesterName: trimester.name,
+        meta: [
+          { label: 'Ambiente', value: environment.name },
+          { label: 'Horas / semana', value: String(schedules.length) },
+          {
+            label: 'Fichas',
+            value: String(new Set(schedules.map((s) => s.groupId)).size),
+          },
+        ],
+        schedules,
+        mode: 'environment',
+      },
+    ]);
+  }
+
+  async schedulesByAllEnvironmentsExcel(trimesterId: string) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, status: ScheduleStatus.ACTIVE },
+      relations: { group: true, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    const byEnvironment = new Map<
+      string,
+      { environment: NonNullable<Schedule['environment']>; items: Schedule[] }
+    >();
+    for (const schedule of schedules) {
+      if (!schedule.environment) continue;
+      const entry = byEnvironment.get(schedule.environmentId);
+      if (entry) {
+        entry.items.push(schedule);
+      } else {
+        byEnvironment.set(schedule.environmentId, {
+          environment: schedule.environment,
+          items: [schedule],
+        });
+      }
+    }
+
+    const sheets = [...byEnvironment.values()]
+      .sort((a, b) =>
+        a.environment.name.localeCompare(b.environment.name, 'es'),
+      )
+      .map(({ environment, items }) => ({
+        sheetName: environment.name,
+        title: `Horario por ambiente — ${environment.name}`,
+        trimesterName: trimester.name,
+        meta: [
+          { label: 'Ambiente', value: environment.name },
+          { label: 'Horas / semana', value: String(items.length) },
+          {
+            label: 'Fichas',
+            value: String(new Set(items.map((s) => s.groupId)).size),
+          },
+        ],
+        schedules: items,
+        mode: 'environment' as const,
+      }));
+
+    return buildScheduleExcel(sheets);
   }
 
   private async loadTrimesterGroup(trimesterId: string, groupId: string) {

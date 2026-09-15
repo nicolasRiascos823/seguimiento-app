@@ -116,9 +116,29 @@ export async function apiDelete<T>(url: string): Promise<T> {
   return data.data;
 }
 
+function filenameFromContentType(contentType: string | undefined): string {
+  const type = (contentType ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+  if (
+    type.includes("spreadsheetml") ||
+    type.includes("excel") ||
+    type === "application/vnd.ms-excel"
+  ) {
+    return "reporte.xlsx";
+  }
+  if (type.includes("pdf")) return "reporte.pdf";
+  return "reporte.bin";
+}
+
+function filenameFromUrl(url: string): string | null {
+  if (url.includes("/excel")) return "reporte.xlsx";
+  if (url.includes("/reports/")) return "reporte.pdf";
+  return null;
+}
+
 export async function apiGetBlob(
   url: string,
   params?: Record<string, unknown>,
+  fallbackFilename?: string,
 ): Promise<{ blob: Blob; filename: string }> {
   const response = await api.get(url, {
     params,
@@ -126,10 +146,23 @@ export async function apiGetBlob(
   });
 
   const disposition = response.headers["content-disposition"] as string | undefined;
-  let filename = "reporte.pdf";
+  let filename: string | undefined;
   if (disposition) {
-    const match = disposition.match(/filename="?([^";\n]+)"?/);
-    if (match?.[1]) filename = match[1];
+    const match = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";\n]+)"?/i);
+    if (match?.[1]) {
+      try {
+        filename = decodeURIComponent(match[1].replace(/"/g, ""));
+      } catch {
+        filename = match[1].replace(/"/g, "");
+      }
+    }
+  }
+
+  if (!filename) {
+    filename =
+      fallbackFilename ??
+      filenameFromUrl(url) ??
+      filenameFromContentType(response.headers["content-type"] as string | undefined);
   }
 
   return { blob: response.data as Blob, filename };
@@ -149,6 +182,21 @@ export async function downloadPdf(
     return;
   }
 
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
+/** Descarga un archivo binario (PDF, Excel, etc.) usando Content-Disposition. */
+export async function downloadFile(
+  url: string,
+  params?: Record<string, unknown>,
+  fallbackFilename?: string,
+): Promise<void> {
+  const { blob, filename } = await apiGetBlob(url, params, fallbackFilename);
+  const objectUrl = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
   anchor.download = filename;
