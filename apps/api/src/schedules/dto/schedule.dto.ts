@@ -98,6 +98,11 @@ export class ListSchedulesQueryDto {
   @IsOptional()
   @IsUUID()
   instructorId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  environmentId?: string;
 }
 
 export class CalendarSchedulesQueryDto {
@@ -114,4 +119,9 @@ export class CalendarSchedulesQueryDto {
   @IsOptional()
   @IsUUID()
   instructorId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  environmentId?: string;
 }

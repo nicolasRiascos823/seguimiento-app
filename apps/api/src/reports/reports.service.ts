@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import PDFDocument from 'pdfkit';
 import {
   Evaluation,
+  Environment,
   Group,
   Schedule,
   Trimester,
@@ -57,6 +58,8 @@ export class ReportsService {
     private readonly trimestersRepo: Repository<Trimester>,
     @InjectRepository(Group) private readonly groupsRepo: Repository<Group>,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(Environment)
+    private readonly environmentsRepo: Repository<Environment>,
     @InjectRepository(Evaluation)
     private readonly evaluationsRepo: Repository<Evaluation>,
     @InjectRepository(Schedule)
@@ -320,6 +323,102 @@ export class ReportsService {
       emptySubtitle: 'Todos los instructores',
       emptyMessage:
         'No hay horarios activos para ningún instructor en este trimestre.',
+      trimester,
+      landscape: true,
+      compact: true,
+      sections,
+    });
+  }
+
+  async schedulesByEnvironment(trimesterId: string, environmentId: string) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+    const environment = await this.environmentsRepo.findOne({
+      where: { id: environmentId },
+    });
+    if (!environment) throw new NotFoundException('Ambiente no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, environmentId, status: ScheduleStatus.ACTIVE },
+      relations: { group: true, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    return this.buildPdf({
+      title: 'Horario por ambiente',
+      subtitle: environment.name,
+      trimester,
+      meta: [
+        { label: 'Ambiente', value: environment.name },
+        { label: 'Horas / semana', value: String(schedules.length) },
+        {
+          label: 'Fichas',
+          value: String(new Set(schedules.map((s) => s.groupId)).size),
+        },
+      ],
+      landscape: true,
+      compact: true,
+      body: (doc, page) => {
+        this.drawScheduleTable(doc, page, schedules, 'environment');
+      },
+    });
+  }
+
+  async schedulesByAllEnvironments(trimesterId: string) {
+    const trimester = await this.trimestersRepo.findOne({
+      where: { id: trimesterId },
+    });
+    if (!trimester) throw new NotFoundException('Trimestre no encontrado');
+
+    const schedules = await this.schedulesRepo.find({
+      where: { trimesterId, status: ScheduleStatus.ACTIVE },
+      relations: { group: true, instructor: true, environment: true },
+      order: { weekDay: 'ASC', blockStart: 'ASC' },
+    });
+
+    const byEnvironment = new Map<
+      string,
+      { environment: NonNullable<Schedule['environment']>; items: Schedule[] }
+    >();
+    for (const schedule of schedules) {
+      if (!schedule.environment) continue;
+      const entry = byEnvironment.get(schedule.environmentId);
+      if (entry) {
+        entry.items.push(schedule);
+      } else {
+        byEnvironment.set(schedule.environmentId, {
+          environment: schedule.environment,
+          items: [schedule],
+        });
+      }
+    }
+
+    const sections = [...byEnvironment.values()]
+      .sort((a, b) =>
+        a.environment.name.localeCompare(b.environment.name, 'es'),
+      )
+      .map(({ environment, items }) => ({
+        subtitle: environment.name,
+        meta: [
+          { label: 'Ambiente', value: environment.name },
+          { label: 'Horas / semana', value: String(items.length) },
+          {
+            label: 'Fichas',
+            value: String(new Set(items.map((s) => s.groupId)).size),
+          },
+        ],
+        body: (doc: PDFKit.PDFDocument, page: PageMetrics) => {
+          this.drawScheduleTable(doc, page, items, 'environment');
+        },
+      }));
+
+    return this.buildMultiPdf({
+      title: 'Horarios por ambiente',
+      emptySubtitle: 'Todos los ambientes',
+      emptyMessage:
+        'No hay horarios activos para ningún ambiente en este trimestre.',
       trimester,
       landscape: true,
       compact: true,
@@ -780,21 +879,10 @@ export class ReportsService {
     doc: PDFKit.PDFDocument,
     page: PageMetrics,
     schedules: Schedule[],
-    mode: 'group' | 'instructor',
+    mode: 'group' | 'instructor' | 'environment',
   ) {
-    const usedStarts = [
-      ...new Set(schedules.map((s) => s.blockStart)),
-    ].sort();
-    let blocks: string[];
-    if (usedStarts.length === 0) {
-      blocks = TIME_BLOCKS.filter((b) => b >= '07:00' && b <= '18:00');
-    } else {
-      const firstIdx = TIME_BLOCKS.findIndex((b) => b === usedStarts[0]);
-      const lastIdx = TIME_BLOCKS.findIndex(
-        (b) => b === usedStarts[usedStarts.length - 1],
-      );
-      blocks = [...TIME_BLOCKS.slice(Math.max(0, firstIdx), lastIdx + 1)];
-    }
+    // Siempre 06:00–22:00 (último bloque 21:00–22:00)
+    const blocks = TIME_BLOCKS.filter((b) => b >= '06:00' && b <= '21:00');
 
     const map = new Map<string, Schedule>();
     for (const s of schedules) {
@@ -873,8 +961,13 @@ export class ReportsService {
           const line1 =
             mode === 'group'
               ? this.shortName(schedule.instructor?.fullName ?? '—')
-              : `F. ${schedule.group?.number ?? '—'}`;
-          const line2 = schedule.environment?.name ?? '';
+              : mode === 'instructor'
+                ? `F. ${schedule.group?.number ?? '—'}`
+                : `F. ${schedule.group?.number ?? '—'}`;
+          const line2 =
+            mode === 'environment'
+              ? this.shortName(schedule.instructor?.fullName ?? '—')
+              : (schedule.environment?.name ?? '');
 
           if (twoLines && line2) {
             doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(6);

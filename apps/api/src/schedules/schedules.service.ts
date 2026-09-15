@@ -246,6 +246,11 @@ export class SchedulesService {
         instructorId: query.instructorId,
       });
     }
+    if (query.environmentId) {
+      qb.andWhere('schedule.environmentId = :environmentId', {
+        environmentId: query.environmentId,
+      });
+    }
 
     return qb;
   }

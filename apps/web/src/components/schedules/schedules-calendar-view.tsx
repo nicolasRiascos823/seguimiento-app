@@ -34,7 +34,7 @@ import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
 
-type ScheduleViewMode = "group" | "instructor";
+type ScheduleViewMode = "group" | "instructor" | "environment";
 
 interface ScheduleFormState {
   weekDay: WeekDay;
@@ -58,6 +58,7 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
   const [instructorId, setInstructorId] = useState(
     !isAdmin && user?.role === "INSTRUCTOR" ? user.id : "",
   );
+  const [environmentId, setEnvironmentId] = useState("");
   const [formState, setFormState] = useState<ScheduleFormState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formGroupId, setFormGroupId] = useState("");
@@ -65,7 +66,13 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
   const [formEnvironmentId, setFormEnvironmentId] = useState("");
 
   const isGroupMode = mode === "group";
-  const selectionReady = isGroupMode ? !!groupId : !!instructorId;
+  const isInstructorMode = mode === "instructor";
+  const isEnvironmentMode = mode === "environment";
+  const selectionReady = isGroupMode
+    ? !!groupId
+    : isInstructorMode
+      ? !!instructorId
+      : !!environmentId;
 
   const trimestersQuery = useQuery({
     queryKey: ["trimesters-active"],
@@ -74,21 +81,32 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
   const instructorsQuery = useQuery({
     queryKey: ["instructors"],
     queryFn: () => apiGet<User[]>("/users/instructors"),
-    enabled: isAdmin || isGroupMode,
+    enabled: isAdmin || isGroupMode || isEnvironmentMode,
   });
   const environmentsQuery = useQuery({
     queryKey: ["environments-active"],
     queryFn: () => apiGet<Environment[]>("/environments", { activeOnly: true }),
-    enabled: isAdmin && !!formState,
+    enabled: isEnvironmentMode || (isAdmin && !!formState),
   });
 
   const calendarParams = useMemo(
     () => ({
       trimesterId: trimesterId || undefined,
       groupId: isGroupMode ? groupId || undefined : undefined,
-      instructorId: !isGroupMode ? instructorId || undefined : undefined,
+      instructorId: isInstructorMode ? instructorId || undefined : undefined,
+      environmentId: isEnvironmentMode
+        ? environmentId || undefined
+        : undefined,
     }),
-    [trimesterId, groupId, instructorId, isGroupMode],
+    [
+      trimesterId,
+      groupId,
+      instructorId,
+      environmentId,
+      isGroupMode,
+      isInstructorMode,
+      isEnvironmentMode,
+    ],
   );
 
   const calendarQuery = useQuery({
@@ -169,8 +187,8 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
     if (!isAdmin) return;
     setFormError(null);
     setFormGroupId(isGroupMode ? groupId : "");
-    setFormInstructorId(!isGroupMode ? instructorId : "");
-    setFormEnvironmentId("");
+    setFormInstructorId(isInstructorMode ? instructorId : "");
+    setFormEnvironmentId(isEnvironmentMode ? environmentId : "");
     const startIdx = timeBlocks.findIndex((b) => b.start === blockStart);
     const defaultEnd =
       timeBlocks[
@@ -198,15 +216,28 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
     });
   }
 
-  const title = isGroupMode ? "Horario por ficha" : "Horario por instructor";
+  const title = isGroupMode
+    ? "Horario por ficha"
+    : isInstructorMode
+      ? "Horario por instructor"
+      : "Horario por ambiente";
   const description = isGroupMode
     ? "Programación semanal filtrada por ficha."
-    : "Programación semanal filtrada por instructor.";
+    : isInstructorMode
+      ? "Programación semanal filtrada por instructor."
+      : "Programación semanal filtrada por ambiente.";
   const emptyPrompt = !trimesterId
     ? "Elija un trimestre activo para continuar."
     : isGroupMode
       ? "Seleccione una ficha para ver su horario."
-      : "Seleccione un instructor para ver su horario.";
+      : isInstructorMode
+        ? "Seleccione un instructor para ver su horario."
+        : "Seleccione un ambiente para ver su horario.";
+  const emptyDescription = isGroupMode
+    ? "Esta ficha aún no tiene bloques programados en el trimestre."
+    : isInstructorMode
+      ? "Este instructor aún no tiene bloques programados en el trimestre."
+      : "Este ambiente aún no tiene bloques programados en el trimestre.";
 
   return (
     <div>
@@ -215,10 +246,13 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
         title={title}
         description={description}
         actions={
-          (!isGroupMode && trimesterId && selectionReady && calendarQuery.data) ||
+          (isInstructorMode &&
+            trimesterId &&
+            selectionReady &&
+            calendarQuery.data) ||
           (isAdmin && trimesterId && selectionReady) ? (
             <>
-              {!isGroupMode &&
+              {isInstructorMode &&
               trimesterId &&
               selectionReady &&
               calendarQuery.data ? (
@@ -280,7 +314,7 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
               placeholder="Seleccionar ficha"
             />
           </div>
-        ) : (
+        ) : isInstructorMode ? (
           <div className="space-y-2">
             <Label htmlFor="filter-instructor">Instructor</Label>
             <Select
@@ -301,10 +335,26 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
                   ) : null}
             </Select>
           </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="filter-environment">Ambiente</Label>
+            <Select
+              id="filter-environment"
+              value={environmentId}
+              onChange={(e) => setEnvironmentId(e.target.value)}
+            >
+              <option value="">Seleccionar ambiente</option>
+              {environmentsQuery.data?.map((env) => (
+                <option key={env.id} value={env.id}>
+                  {env.name}
+                </option>
+              ))}
+            </Select>
+          </div>
         )}
       </div>
 
-      {!isGroupMode && trimesterId && selectionReady && calendarQuery.data ? (
+      {isInstructorMode && trimesterId && selectionReady && calendarQuery.data ? (
         <div className="mb-4 flex flex-wrap gap-2">
           {hoursByDay.map(({ day, hours }) => (
             <div
@@ -337,11 +387,7 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
           data={calendarQuery.data}
           emptyIcon={CalendarDays}
           emptyTitle="Sin horarios"
-          emptyDescription={
-            isGroupMode
-              ? "Esta ficha aún no tiene bloques programados en el trimestre."
-              : "Este instructor aún no tiene bloques programados en el trimestre."
-          }
+          emptyDescription={emptyDescription}
           loadingLabel="Cargando horarios..."
         >
           {(calendar) => (
@@ -398,7 +444,9 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
                                 {schedules.map((schedule) => {
                                   const colorKey = isGroupMode
                                     ? schedule.instructorId
-                                    : schedule.groupId;
+                                    : isInstructorMode
+                                      ? schedule.groupId
+                                      : schedule.groupId;
                                   const colors = colorFromId(colorKey);
                                   return (
                                     <button
@@ -422,13 +470,22 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
                                             {schedule.environment?.name ?? "—"}
                                           </p>
                                         </>
-                                      ) : (
+                                      ) : isInstructorMode ? (
                                         <>
                                           <p className="font-semibold">
                                             Ficha {schedule.group?.number ?? "—"}
                                           </p>
                                           <p className="opacity-80">
                                             {schedule.environment?.name ?? "—"}
+                                          </p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p className="font-semibold">
+                                            Ficha {schedule.group?.number ?? "—"}
+                                          </p>
+                                          <p className="opacity-80">
+                                            {schedule.instructor?.fullName ?? "—"}
                                           </p>
                                         </>
                                       )}
@@ -570,7 +627,8 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
                     value={formInstructorId}
                     onChange={(e) => setFormInstructorId(e.target.value)}
                     disabled={
-                      !!formState.schedule || (!isGroupMode && !!instructorId)
+                      !!formState.schedule ||
+                      (isInstructorMode && !!instructorId)
                     }
                   >
                     <option value="" disabled>
@@ -590,7 +648,10 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
                     id="form-environment"
                     value={formEnvironmentId}
                     onChange={(e) => setFormEnvironmentId(e.target.value)}
-                    disabled={!!formState.schedule}
+                    disabled={
+                      !!formState.schedule ||
+                      (isEnvironmentMode && !!environmentId)
+                    }
                   >
                     <option value="" disabled>
                       Seleccionar ambiente

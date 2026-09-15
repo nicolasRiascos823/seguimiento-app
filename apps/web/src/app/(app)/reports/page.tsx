@@ -6,7 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useRequireAuth } from "@/lib/auth";
 import { apiGet, downloadPdf } from "@/lib/api";
-import type { Trimester, User } from "@/lib/types";
+import type { Environment, Trimester, User } from "@/lib/types";
 import { getApiErrorMessage } from "@/lib/utils";
 import { GroupSelect } from "@/components/group-select";
 import { Alert } from "@/components/ui/alert";
@@ -21,6 +21,7 @@ export default function ReportsPage() {
   const [trimesterId, setTrimesterId] = useState("");
   const [groupId, setGroupId] = useState("");
   const [instructorId, setInstructorId] = useState("");
+  const [environmentId, setEnvironmentId] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
 
   const trimestersQuery = useQuery({
@@ -31,6 +32,11 @@ export default function ReportsPage() {
   const instructorsQuery = useQuery({
     queryKey: ["instructors"],
     queryFn: () => apiGet<User[]>("/users/instructors"),
+  });
+
+  const environmentsQuery = useQuery({
+    queryKey: ["environments-active"],
+    queryFn: () => apiGet<Environment[]>("/environments", { activeOnly: true }),
   });
 
   async function handleDownload(
@@ -51,16 +57,17 @@ export default function ReportsPage() {
 
   const groupReportsReady = !!trimesterId && !!groupId;
   const instructorReportReady = !!trimesterId && !!instructorId;
+  const environmentReportReady = !!trimesterId && !!environmentId;
 
   return (
     <div>
       <PageHeader
         breadcrumb="Seguimiento"
         title="Reportes"
-        description="Descargue reportes PDF de seguimiento y horarios por ficha o instructor."
+        description="Descargue reportes PDF de seguimiento y horarios por ficha, instructor o ambiente."
       />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-2">
           <Label htmlFor="trimester">Trimestre</Label>
           <Select
@@ -102,6 +109,21 @@ export default function ReportsPage() {
             ))}
           </Select>
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="environment">Ambiente</Label>
+          <Select
+            id="environment"
+            value={environmentId}
+            onChange={(e) => setEnvironmentId(e.target.value)}
+          >
+            <option value="">Seleccionar ambiente</option>
+            {environmentsQuery.data?.map((env) => (
+              <option key={env.id} value={env.id}>
+                {env.name}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {!trimesterId ? (
@@ -118,7 +140,7 @@ export default function ReportsPage() {
               Un solo PDF con todos los horarios activos del trimestre
               seleccionado.
             </p>
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -198,6 +220,51 @@ export default function ReportsPage() {
                         handleDownload(
                           "sched-all-instructors-open",
                           "/reports/schedules/instructors",
+                          { trimesterId },
+                          "open",
+                        )
+                      }
+                    >
+                      Abrir
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Todos los ambientes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Incluye el horario semanal de cada ambiente con
+                    programación en el trimestre.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      loading={loading === "sched-all-environments-download"}
+                      onClick={() =>
+                        handleDownload(
+                          "sched-all-environments-download",
+                          "/reports/schedules/environments",
+                          { trimesterId },
+                        )
+                      }
+                    >
+                      Descargar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      loading={loading === "sched-all-environments-open"}
+                      onClick={() =>
+                        handleDownload(
+                          "sched-all-environments-open",
+                          "/reports/schedules/environments",
                           { trimesterId },
                           "open",
                         )
@@ -345,6 +412,52 @@ export default function ReportsPage() {
                           "sched-instructor-open",
                           "/reports/schedules/instructor",
                           { trimesterId, instructorId },
+                          "open",
+                        )
+                      }
+                    >
+                      Abrir
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Horario por ambiente
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Programación semanal del ambiente en el trimestre.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      disabled={!environmentReportReady}
+                      loading={loading === "sched-environment-download"}
+                      onClick={() =>
+                        handleDownload(
+                          "sched-environment-download",
+                          "/reports/schedules/environment",
+                          { trimesterId, environmentId },
+                        )
+                      }
+                    >
+                      Descargar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!environmentReportReady}
+                      loading={loading === "sched-environment-open"}
+                      onClick={() =>
+                        handleDownload(
+                          "sched-environment-open",
+                          "/reports/schedules/environment",
+                          { trimesterId, environmentId },
                           "open",
                         )
                       }

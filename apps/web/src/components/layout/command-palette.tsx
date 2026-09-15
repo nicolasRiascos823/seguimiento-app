@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  Building2,
   CalendarDays,
   ClipboardList,
   FileText,
@@ -40,6 +41,7 @@ const COMMANDS: CommandItem[] = [
   { id: "groups", label: "Fichas", href: "/groups", icon: UsersRound },
   { id: "schedules-group", label: "Horario por ficha", href: "/schedules/group", icon: CalendarDays, keywords: "calendario" },
   { id: "schedules-instructor", label: "Horario por instructor", href: "/schedules/instructor", icon: User, keywords: "calendario" },
+  { id: "schedules-environment", label: "Horario por ambiente", href: "/schedules/environment", icon: Building2, keywords: "calendario ambiente" },
   { id: "follow-ups", label: "Seguimiento / Evaluaciones", href: "/follow-ups", icon: ClipboardList, keywords: "matriz" },
   { id: "warnings", label: "Llamados", href: "/warnings", icon: AlertTriangle },
   { id: "reports", label: "Reportes", href: "/reports", icon: FileText, keywords: "pdf" },

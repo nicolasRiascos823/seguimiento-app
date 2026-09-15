@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as XLSX from 'xlsx';
+import readXlsxFile from 'read-excel-file/node';
 import {
   Apprentice,
   Group,
@@ -53,11 +53,7 @@ export class ImportsService {
   async importApprentices(file: Express.Multer.File, actor: AuthUser) {
     if (!file) throw new BadRequestException('Archivo requerido');
 
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: '',
-    });
+    const rows = await this.readSpreadsheetRows(file);
 
     if (rows.length === 0) {
       throw new BadRequestException('El archivo no contiene filas');
@@ -157,6 +153,56 @@ export class ImportsService {
     }
 
     return qb.getOne();
+  }
+
+  private async readSpreadsheetRows(
+    file: Express.Multer.File,
+  ): Promise<Record<string, unknown>[]> {
+    let matrix: unknown[][];
+    try {
+      const parsed = await readXlsxFile(file.buffer);
+      matrix = parsed as unknown as unknown[][];
+    } catch {
+      throw new BadRequestException(
+        'No se pudo leer el archivo. Use un Excel .xlsx válido',
+      );
+    }
+
+    if (!matrix.length) {
+      throw new BadRequestException('El archivo no contiene hojas');
+    }
+
+    const [headerCells, ...dataRows] = matrix;
+    const headers = (headerCells ?? []).map((cell) =>
+      this.cellToString(cell),
+    );
+
+    if (!headers.some((h) => h.trim())) {
+      throw new BadRequestException('La primera fila debe contener encabezados');
+    }
+
+    const rows: Record<string, unknown>[] = [];
+    for (const dataRow of dataRows) {
+      const raw: Record<string, unknown> = {};
+      let hasValue = false;
+      headers.forEach((header, index) => {
+        if (!header) return;
+        const value = this.cellToString(dataRow?.[index]);
+        raw[header] = value;
+        if (value) hasValue = true;
+      });
+      if (hasValue) rows.push(raw);
+    }
+
+    return rows;
+  }
+
+  private cellToString(value: unknown): string {
+    if (value == null) return '';
+    if (value instanceof Date) {
+      return value.toISOString().slice(0, 10);
+    }
+    return String(value).trim();
   }
 
   private mapRow(raw: Record<string, unknown>): Row {

@@ -11,14 +11,17 @@
     "build": "npm run build -w @seguimiento/api && npm run build -w @seguimiento/web",
     "build:api": "npm run build -w @seguimiento/api",
     "start:api": "npm run start:prod -w @seguimiento/api",
-    "render:build": "npm install --include=dev && npm run build -w @seguimiento/api",
+    "render:build": "npm install --include=dev --legacy-peer-deps && npm run build -w @seguimiento/api",
     "test": "npm run test -w @seguimiento/api",
     "seed": "npm run seed -w @seguimiento/api"
   },
   "overrides": {
-    "typeorm": "0.3.22",
+    "typeorm": "0.3.31",
     "@nestjs/typeorm": {
-      "typeorm": "0.3.22"
-    }
+      "typeorm": "0.3.31"
+    },
+    "multer": "2.4.0",
+    "postcss": "8.5.28",
+    "sharp": "0.35.4"
   }
 }

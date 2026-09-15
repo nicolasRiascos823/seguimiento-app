@@ -110,6 +110,12 @@ const navEntries: NavEntry[] = [
         label: "Horario por instructor",
         icon: User,
       },
+      {
+        type: "link",
+        href: "/schedules/environment",
+        label: "Horario por ambiente",
+        icon: Building2,
+      },
     ],
   },
   {

@@ -20,6 +20,10 @@ class ReportQueryDto {
   @IsOptional()
   @IsUUID()
   instructorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  environmentId?: string;
 }
 
 @ApiTags('Reports')
@@ -92,6 +96,32 @@ export class ReportsController {
     return new StreamableFile(pdf, {
       type: 'application/pdf',
       disposition: 'inline; filename="horarios-instructores.pdf"',
+    });
+  }
+
+  @Get('schedules/environment')
+  async schedulesByEnvironment(@Query() query: ReportQueryDto) {
+    if (!query.environmentId) {
+      throw new BadRequestException('environmentId es requerido');
+    }
+    const pdf = await this.reportsService.schedulesByEnvironment(
+      query.trimesterId,
+      query.environmentId,
+    );
+    return new StreamableFile(pdf, {
+      type: 'application/pdf',
+      disposition: 'inline; filename="horario-ambiente.pdf"',
+    });
+  }
+
+  @Get('schedules/environments')
+  async schedulesByAllEnvironments(@Query() query: ReportQueryDto) {
+    const pdf = await this.reportsService.schedulesByAllEnvironments(
+      query.trimesterId,
+    );
+    return new StreamableFile(pdf, {
+      type: 'application/pdf',
+      disposition: 'inline; filename="horarios-ambientes.pdf"',
     });
   }
 }
