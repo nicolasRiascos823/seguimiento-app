@@ -476,6 +476,14 @@ export class Environment {
 
 
 
+  /** Si es true, varias fichas/instructores pueden compartir el mismo bloque horario. */
+
+  @Column({ default: false })
+
+  isVirtual: boolean;
+
+
+
   @CreateDateColumn()
 
   createdAt: Date;

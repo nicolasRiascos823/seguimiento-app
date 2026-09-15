@@ -348,18 +348,23 @@ export class SchedulesService {
       excludeId,
     );
 
-    await this.assertNoOverlap(
-      {
-        trimesterId: dto.trimesterId,
-        weekDay: dto.weekDay,
-        blockStart: dto.blockStart,
-        status: ScheduleStatus.ACTIVE,
-      },
-      'environmentId',
-      dto.environmentId,
-      'El ambiente ya está ocupado en este horario',
-      excludeId,
-    );
+    const environment = await this.environmentsRepo.findOne({
+      where: { id: dto.environmentId },
+    });
+    if (!environment?.isVirtual) {
+      await this.assertNoOverlap(
+        {
+          trimesterId: dto.trimesterId,
+          weekDay: dto.weekDay,
+          blockStart: dto.blockStart,
+          status: ScheduleStatus.ACTIVE,
+        },
+        'environmentId',
+        dto.environmentId,
+        'El ambiente ya está ocupado en este horario',
+        excludeId,
+      );
+    }
   }
 
   private async assertNoOverlap(

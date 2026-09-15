@@ -252,26 +252,24 @@ async function main() {
 
 
 
-  for (const envName of ['Ambiente 101', 'Ambiente 102', 'Taller A']) {
-
-    const existing = await environments.findOne({ where: { name: envName } });
-
+  for (const env of [
+    { name: 'Ambiente 101', isVirtual: false },
+    { name: 'Ambiente 102', isVirtual: false },
+    { name: 'Taller A', isVirtual: false },
+    { name: 'Ambiente Virtual', isVirtual: true },
+  ]) {
+    const existing = await environments.findOne({ where: { name: env.name } });
     if (!existing) {
-
       await environments.save(
-
         environments.create({
-
-          name: envName,
-
+          name: env.name,
           status: EnvironmentStatus.ACTIVE,
-
+          isVirtual: env.isVirtual,
         }),
-
       );
-
+    } else if (env.isVirtual && !existing.isVirtual) {
+      await environments.update(existing.id, { isVirtual: true });
     }
-
   }
 
 

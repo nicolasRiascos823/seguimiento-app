@@ -347,6 +347,7 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
               {environmentsQuery.data?.map((env) => (
                 <option key={env.id} value={env.id}>
                   {env.name}
+                  {env.isVirtual ? " (Virtual)" : ""}
                 </option>
               ))}
             </Select>
@@ -659,6 +660,7 @@ export function SchedulesCalendarView({ mode }: SchedulesCalendarViewProps) {
                     {environmentsQuery.data?.map((env) => (
                       <option key={env.id} value={env.id}>
                         {env.name}
+                        {env.isVirtual ? " (Virtual)" : ""}
                       </option>
                     ))}
                   </Select>

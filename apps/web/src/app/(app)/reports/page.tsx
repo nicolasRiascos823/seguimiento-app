@@ -120,6 +120,7 @@ export default function ReportsPage() {
             {environmentsQuery.data?.map((env) => (
               <option key={env.id} value={env.id}>
                 {env.name}
+                {env.isVirtual ? " (Virtual)" : ""}
               </option>
             ))}
           </Select>

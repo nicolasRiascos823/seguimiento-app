@@ -94,6 +94,7 @@ export interface Environment {
   id: string;
   name: string;
   status: EnvironmentStatus;
+  isVirtual: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
